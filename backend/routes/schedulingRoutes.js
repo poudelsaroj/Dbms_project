@@ -1,20 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const schedulingController = require('../controllers/schedulingController');
+const { authenticateUser } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
+const schedulingValidation = require('../middleware/schedulingValidation');
 
-// GET all schedules
-router.get('/', schedulingController.getAllSchedules);
+// Routes with proper controllers
+router.get('/', authenticateUser, schedulingController.getSchedules);
+router.post('/', authMiddleware.authenticateUser, authMiddleware.authorizeAdmin, schedulingValidation.validateExamSchedule, schedulingController.createSchedule);
+router.put('/:id', authMiddleware.authenticateUser, authMiddleware.authorizeAdmin, schedulingController.updateSchedule);
+router.delete('/:id', authMiddleware.authenticateUser, authMiddleware.authorizeAdmin, schedulingController.deleteSchedule);
 
-// POST create new schedule
-router.post('/', schedulingController.createSchedule);
-
-// GET single schedule
-router.get('/:id', schedulingController.getSchedule);
-
-// PUT update schedule
-router.put('/:id', schedulingController.updateSchedule);
-
-// DELETE schedule
-router.delete('/:id', schedulingController.deleteSchedule);
-
-module.exports = router; 
+module.exports = router;

@@ -1,120 +1,153 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
+import { Form, Button, Container, Row, Col } from 'react-bootstrap';
 
 const AddInvigilator = () => {
     const navigate = useNavigate();
+    const [departments, setDepartments] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
-        department: '',
         email: '',
+        password: '',
         phone: '',
-        designation: ''
+        department_id: '',
+        designation: '',
+        max_duties_per_day: 2,
+        max_duties_per_week: 6
     });
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        // Fetch departments when component mounts
+        const fetchDepartments = async () => {
+            try {
+                const response = await apiService.getAllDepartments();
+                setDepartments(response.data || []);
+            } catch (err) {
+                console.error('Error fetching departments:', err);
+                toast.error('Failed to load departments');
+            }
+        };
+        fetchDepartments();
+    }, []);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/invigilators', formData);
-            alert('Invigilator added successfully!');
-            navigate('/view-invigilators');
+            // Validate required fields
+            if (!formData.name || !formData.email || !formData.password || !formData.department_id) {
+                setError('Name, email, password and department are required');
+                toast.error('Please fill in all required fields');
+                return;
+            }
+
+            const response = await apiService.createInvigilator(formData);
+            
+            if (response) {
+                toast.success('Invigilator added successfully!');
+                navigate('/view-invigilators');
+            }
         } catch (error) {
-            console.error('Error adding invigilator:', error);
-            alert('Error adding invigilator');
+            console.error('Registration error:', error.response?.data || error);
+            setError(error.response?.data?.message || 'Registration failed');
+            toast.error(error.response?.data?.message || 'Failed to create invigilator');
         }
     };
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
     return (
-        <div className="container mt-4">
-            <div className="card">
-                <div className="card-header">
-                    <h3>Add New Invigilator</h3>
-                </div>
-                <div className="card-body">
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3">
-                            <label className="form-label">Name</label>
-                            <input
+        <Container className="mt-4">
+            <Row className="justify-content-center">
+                <Col md={8}>
+                    <h2>Add New Invigilator</h2>
+                    {error && <div className="alert alert-danger">{error}</div>}
+                    <Form onSubmit={handleSubmit}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Name*</Form.Label>
+                            <Form.Control
                                 type="text"
-                                className="form-control"
                                 name="name"
                                 value={formData.name}
                                 onChange={handleChange}
                                 required
                             />
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Department</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                name="department"
-                                value={formData.department}
-                                onChange={handleChange}
-                                required
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Email</label>
-                            <input
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Email*</Form.Label>
+                            <Form.Control
                                 type="email"
-                                className="form-control"
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
                                 required
                             />
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Phone</label>
-                            <input
-                                type="tel"
-                                className="form-control"
-                                name="phone"
-                                value={formData.phone}
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Password*</Form.Label>
+                            <Form.Control
+                                type="password"
+                                name="password"
+                                value={formData.password}
                                 onChange={handleChange}
                                 required
                             />
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Designation</label>
-                            <select
-                                className="form-control"
-                                name="designation"
-                                value={formData.designation}
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Department*</Form.Label>
+                            <Form.Select
+                                name="department_id"
+                                value={formData.department_id}
                                 onChange={handleChange}
                                 required
                             >
-                                <option value="">Select Designation</option>
-                                <option value="Professor">Professor</option>
-                                <option value="Associate Professor">Associate Professor</option>
-                                <option value="Assistant Professor">Assistant Professor</option>
-                                <option value="Lecturer">Lecturer</option>
-                            </select>
-                        </div>
-                        <div className="d-flex justify-content-between">
-                            <button 
-                                type="button" 
-                                className="btn btn-secondary"
-                                onClick={() => navigate(-1)}
-                            >
-                                Cancel
-                            </button>
-                            <button type="submit" className="btn btn-primary">
-                                Add Invigilator
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+                                <option value="">Select Department</option>
+                                {departments.map(dept => (
+                                    <option key={dept.id} value={dept.id}>
+                                        {dept.name}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Phone</Form.Label>
+                            <Form.Control
+                                type="tel"
+                                name="phone"
+                                value={formData.phone}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Designation</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="designation"
+                                value={formData.designation}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+
+                        <Button variant="primary" type="submit">
+                            Add Invigilator
+                        </Button>
+                    </Form>
+                </Col>
+            </Row>
+        </Container>
     );
 };
 

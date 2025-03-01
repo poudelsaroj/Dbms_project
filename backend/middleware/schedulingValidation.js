@@ -78,6 +78,6 @@ exports.validateExamSchedule = async (req, res, next) => {
         next();
     } catch (error) {
         console.error('Validation error:', error);
-        res.status(500).json({ message: 'Error validating schedule' });
+        res.status(500).json({ message: 'Validation error' });
     }
-}; 
+};

@@ -1,134 +1,153 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
+import { Container, Row, Col, Card, Table, Button, Form } from 'react-bootstrap';
 
 const ExamSchedule = () => {
-    const [schedules, setSchedules] = useState([]);
+    const navigate = useNavigate();
+    const [exams, setExams] = useState([]);
+    const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({
+    const [filters, setFilters] = useState({
         department: '',
-        date: ''
+        date: '',
+        status: ''
     });
 
     useEffect(() => {
-        fetchSchedules();
+        fetchData();
     }, []);
 
-    const fetchSchedules = async () => {
+    const fetchData = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/exam-schedules');
-            setSchedules(response.data);
-            setLoading(false);
+            setLoading(true);
+            const [examsRes, deptsRes] = await Promise.all([
+                apiService.getExams(),
+                apiService.getAllDepartments()
+            ]);
+            
+            // Ensure we're setting arrays
+            setExams(Array.isArray(examsRes) ? examsRes : []);
+            setDepartments(Array.isArray(deptsRes) ? deptsRes : []);
         } catch (error) {
-            console.error('Error fetching schedules:', error);
+            console.error('Error fetching data:', error);
+            toast.error('Failed to load exam schedule');
+        } finally {
             setLoading(false);
         }
     };
 
-    const filteredSchedules = schedules.filter(schedule => {
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this exam?')) {
+            try {
+                await apiService.deleteExam(id);
+                toast.success('Exam deleted successfully');
+                fetchData();
+            } catch (error) {
+                toast.error('Failed to delete exam');
+            }
+        }
+    };
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const filteredExams = exams.filter(exam => {
         return (
-            (!filter.department || schedule.department.toLowerCase().includes(filter.department.toLowerCase())) &&
-            (!filter.date || schedule.exam_date === filter.date)
+            (!filters.department || exam.department_id === parseInt(filters.department)) &&
+            (!filters.date || exam.exam_date === filters.date) &&
+            (!filters.status || exam.status === filters.status)
         );
     });
 
+    if (loading) {
+        return <div className="text-center mt-5">Loading...</div>;
+    }
+
     return (
-        <div className="container mt-4">
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h2>Exam Schedule</h2>
-                <Link to="/create-exam" className="btn btn-primary">
-                    <i className="fas fa-plus me-2"></i>Add New Exam
-                </Link>
-            </div>
-
-            {/* Filters */}
-            <div className="card mb-4">
-                <div className="card-body">
-                    <div className="row">
-                        <div className="col-md-6 mb-3">
-                            <label className="form-label">Filter by Department</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                value={filter.department}
-                                onChange={(e) => setFilter({...filter, department: e.target.value})}
-                                placeholder="Enter department name"
-                            />
-                        </div>
-                        <div className="col-md-6 mb-3">
-                            <label className="form-label">Filter by Date</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={filter.date}
-                                onChange={(e) => setFilter({...filter, date: e.target.value})}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {loading ? (
-                <div className="text-center">
-                    <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-            ) : (
-                <div className="card">
-                    <div className="card-body">
-                        <div className="table-responsive">
-                            <table className="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Subject</th>
-                                        <th>Department</th>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Room</th>
-                                        <th>Invigilators</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredSchedules.map(schedule => (
-                                        <tr key={schedule.id}>
-                                            <td>{schedule.subject_name}</td>
-                                            <td>{schedule.department}</td>
-                                            <td>{schedule.exam_date}</td>
-                                            <td>{`${schedule.start_time} - ${schedule.end_time}`}</td>
-                                            <td>{schedule.room_number}</td>
-                                            <td>
-                                                {schedule.invigilators.map(inv => inv.name).join(', ')}
-                                            </td>
-                                            <td>
-                                                <Link
-                                                    to={`/edit-exam/${schedule.id}`}
-                                                    className="btn btn-sm btn-primary me-2"
-                                                >
-                                                    <i className="fas fa-edit"></i>
-                                                </Link>
-                                                <button
-                                                    className="btn btn-sm btn-danger"
-                                                    onClick={() => {
-                                                        if(window.confirm('Are you sure you want to delete this exam?')) {
-                                                            // Handle delete
-                                                        }
-                                                    }}
-                                                >
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
+        <Container className="mt-4">
+            <Card>
+                <Card.Header className="d-flex justify-content-between align-items-center">
+                    <h3>Exam Schedule</h3>
+                    <Button 
+                        variant="primary" 
+                        onClick={() => navigate('/create-exam')}
+                    >
+                        Create New Exam
+                    </Button>
+                </Card.Header>
+                <Card.Body>
+                    <Row className="mb-3">
+                        <Col md={4}>
+                            <Form.Group>
+                                <Form.Label>Filter by Department</Form.Label>
+                                <Form.Select
+                                    name="department"
+                                    value={filters.department}
+                                    onChange={handleFilterChange}
+                                >
+                                    <option value="">All Departments</option>
+                                    {Array.isArray(departments) && departments.map(dept => (
+                                        <option key={dept.id} value={dept.id}>
+                                            {dept.name}
+                                        </option>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        {/* Add other filters as needed */}
+                    </Row>
+
+                    <Table striped bordered hover>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Department</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Room</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredExams.map(exam => (
+                                <tr key={exam.id}>
+                                    <td>{exam.subject_name}</td>
+                                    <td>{departments.find(d => d.id === exam.department_id)?.name || 'N/A'}</td>
+                                    <td>{new Date(exam.exam_date).toLocaleDateString()}</td>
+                                    <td>{`${exam.start_time} - ${exam.end_time}`}</td>
+                                    <td>{exam.room_number}</td>
+                                    <td>
+                                        <Button
+                                            variant="info"
+                                            size="sm"
+                                            className="me-2"
+                                            onClick={() => navigate(`/edit-exam/${exam.id}`)}
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => handleDelete(exam.id)}
+                                        >
+                                            Delete
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                </Card.Body>
+            </Card>
+        </Container>
     );
 };
 
-export default ExamSchedule; 
+export default ExamSchedule;

@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { Container, Row, Col, Card, Button, Form, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
 
 const ClassManagement = () => {
     const navigate = useNavigate();
     const [classes, setClasses] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedClass, setSelectedClass] = useState(null);
+
     const [formData, setFormData] = useState({
+        name: '',
         room_number: '',
         capacity: '',
         building: '',
         floor: ''
     });
-    const [isAdding, setIsAdding] = useState(false);
 
     useEffect(() => {
         fetchClasses();
@@ -19,152 +27,325 @@ const ClassManagement = () => {
 
     const fetchClasses = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/classes');
-            setClasses(response.data);
+            setLoading(true);
+            const response = await apiService.getClasses();
+            console.log("Classes response:", response);
+
+            // More robust handling of response data
+            let classesData = [];
+            if (response && response.data) {
+                classesData = Array.isArray(response.data) ? response.data :
+                    (response.data.data ? response.data.data : []);
+            }
+
+            setClasses(classesData);
         } catch (error) {
             console.error('Error fetching classes:', error);
-            alert('Error fetching classes');
+            toast.error('Failed to load classes');
+            setClasses([]);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleSubmit = async (e) => {
+    const handleAddClass = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/classes', formData);
-            alert('Class added successfully!');
-            setIsAdding(false);
+            const response = await apiService.createClass(formData);
+            toast.success('Class added successfully');
+            setShowAddModal(false);
+            resetForm();
             fetchClasses();
-            setFormData({
-                room_number: '',
-                capacity: '',
-                building: '',
-                floor: ''
-            });
         } catch (error) {
             console.error('Error adding class:', error);
-            alert('Error adding class');
+            toast.error('Failed to add class');
         }
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this class?')) {
-            try {
-                await axios.delete(`http://localhost:5000/api/classes/${id}`);
-                setClasses(classes.filter(c => c.id !== id));
-                alert('Class deleted successfully');
-            } catch (error) {
-                console.error('Error deleting class:', error);
-                alert('Error deleting class');
-            }
+    const handleDeleteClass = async () => {
+        if (!selectedClass) return;
+
+        try {
+            await apiService.deleteClass(selectedClass.id);
+            toast.success('Class deleted successfully');
+            setShowDeleteModal(false);
+            fetchClasses();
+        } catch (error) {
+            console.error('Error deleting class:', error);
+            toast.error('Failed to delete class');
         }
     };
+
+    const handleEditClass = async (e) => {
+        e.preventDefault();
+        if (!selectedClass) return;
+
+        try {
+            await apiService.updateClass(selectedClass.id, formData);
+            toast.success('Class updated successfully');
+            setShowEditModal(false);
+            resetForm();
+            fetchClasses();
+        } catch (error) {
+            console.error('Error updating class:', error);
+            toast.error('Failed to update class');
+        }
+    };
+
+    const openEditModal = (classItem) => {
+        setSelectedClass(classItem);
+        setFormData({
+            name: classItem.name || '',
+            room_number: classItem.room_number || '',
+            capacity: classItem.capacity || '',
+            building: classItem.building || '',
+            floor: classItem.floor || ''
+        });
+        setShowEditModal(true);
+    };
+
+    const openDeleteModal = (classItem) => {
+        setSelectedClass(classItem);
+        setShowDeleteModal(true);
+    };
+
+    const resetForm = () => {
+        setFormData({
+            name: '',
+            room_number: '',
+            capacity: '',
+            building: '',
+            floor: ''
+        });
+        setSelectedClass(null);
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Ensure classes is always an array before rendering
+    const classesArray = Array.isArray(classes) ? classes : [];
 
     return (
-        <div className="container mt-4">
+        <Container className="py-4">
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Class Management</h2>
-                <button 
-                    className="btn btn-primary"
-                    onClick={() => setIsAdding(!isAdding)}
-                >
-                    {isAdding ? 'Cancel' : 'Add New Class'}
-                </button>
+                <Button variant="primary" onClick={() => setShowAddModal(true)}>
+                    <i className="fas fa-plus me-1"></i> Add Class
+                </Button>
             </div>
 
-            {isAdding && (
-                <div className="card mb-4">
-                    <div className="card-header">
-                        <h4>Add New Class</h4>
-                    </div>
-                    <div className="card-body">
-                        <form onSubmit={handleSubmit}>
-                            <div className="row">
-                                <div className="col-md-6 mb-3">
-                                    <label className="form-label">Room Number</label>
-                                    <input
-                                        type="text"
-                                        className="form-control"
-                                        value={formData.room_number}
-                                        onChange={(e) => setFormData({...formData, room_number: e.target.value})}
-                                        required
-                                    />
+            <Row>
+                <Col>
+                    <Card className="shadow">
+                        <Card.Header>
+                            <h5 className="mb-0">Classes/Rooms</h5>
+                        </Card.Header>
+                        <Card.Body>
+                            {loading ? (
+                                <p className="text-center">Loading...</p>
+                            ) : (
+                                <div className="table-responsive">
+                                    <table className="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Room Number</th>
+                                                <th>Capacity</th>
+                                                <th>Building</th>
+                                                <th>Floor</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {classesArray.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="6" className="text-center">No classes found</td>
+                                                </tr>
+                                            ) : (
+                                                classesArray.map((classItem) => (
+                                                    <tr key={classItem.id}>
+                                                        <td>{classItem.name}</td>
+                                                        <td>{classItem.room_number}</td>
+                                                        <td>{classItem.capacity}</td>
+                                                        <td>{classItem.building}</td>
+                                                        <td>{classItem.floor}</td>
+                                                        <td>
+                                                            <Button variant="outline-primary" size="sm" className="me-2" onClick={() => openEditModal(classItem)}>
+                                                                <i className="fas fa-edit"></i>
+                                                            </Button>
+                                                            <Button variant="outline-danger" size="sm" onClick={() => openDeleteModal(classItem)}>
+                                                                <i className="fas fa-trash"></i>
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="col-md-6 mb-3">
-                                    <label className="form-label">Capacity</label>
-                                    <input
-                                        type="number"
-                                        className="form-control"
-                                        value={formData.capacity}
-                                        onChange={(e) => setFormData({...formData, capacity: e.target.value})}
-                                        required
-                                    />
-                                </div>
-                                <div className="col-md-6 mb-3">
-                                    <label className="form-label">Building</label>
-                                    <input
-                                        type="text"
-                                        className="form-control"
-                                        value={formData.building}
-                                        onChange={(e) => setFormData({...formData, building: e.target.value})}
-                                        required
-                                    />
-                                </div>
-                                <div className="col-md-6 mb-3">
-                                    <label className="form-label">Floor</label>
-                                    <input
-                                        type="number"
-                                        className="form-control"
-                                        value={formData.floor}
-                                        onChange={(e) => setFormData({...formData, floor: e.target.value})}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <button type="submit" className="btn btn-success">
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Add Modal */}
+            <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Add New Class</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form onSubmit={handleAddClass}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Room Number</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="room_number"
+                                value={formData.room_number}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Capacity</Form.Label>
+                            <Form.Control
+                                type="number"
+                                name="capacity"
+                                value={formData.capacity}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Building</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="building"
+                                value={formData.building}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Floor</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="floor"
+                                value={formData.floor}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+                        <div className="d-flex justify-content-end">
+                            <Button variant="secondary" className="me-2" onClick={() => setShowAddModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="primary" type="submit">
                                 Add Class
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
+                            </Button>
+                        </div>
+                    </Form>
+                </Modal.Body>
+            </Modal>
 
-            <div className="card">
-                <div className="card-body">
-                    <div className="table-responsive">
-                        <table className="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Room Number</th>
-                                    <th>Capacity</th>
-                                    <th>Building</th>
-                                    <th>Floor</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {classes.map(classroom => (
-                                    <tr key={classroom.id}>
-                                        <td>{classroom.room_number}</td>
-                                        <td>{classroom.capacity}</td>
-                                        <td>{classroom.building}</td>
-                                        <td>{classroom.floor}</td>
-                                        <td>
-                                            <button
-                                                className="btn btn-sm btn-danger me-2"
-                                                onClick={() => handleDelete(classroom.id)}
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+            {/* Edit Modal */}
+            <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Edit Class</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form onSubmit={handleEditClass}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Room Number</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="room_number"
+                                value={formData.room_number}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Capacity</Form.Label>
+                            <Form.Control
+                                type="number"
+                                name="capacity"
+                                value={formData.capacity}
+                                onChange={handleChange}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Building</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="building"
+                                value={formData.building}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Floor</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="floor"
+                                value={formData.floor}
+                                onChange={handleChange}
+                            />
+                        </Form.Group>
+                        <div className="d-flex justify-content-end">
+                            <Button variant="secondary" className="me-2" onClick={() => setShowEditModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="primary" type="submit">
+                                Update Class
+                            </Button>
+                        </div>
+                    </Form>
+                </Modal.Body>
+            </Modal>
+
+            {/* Delete Modal */}
+            <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Delete Class</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Are you sure you want to delete the class "{selectedClass?.name}"?</p>
+                    <p className="text-danger">This action cannot be undone.</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button variant="danger" onClick={handleDeleteClass}>
+                        Delete
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </Container>
     );
 };
 
-export default ClassManagement; 
+export default ClassManagement;

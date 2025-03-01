@@ -1,61 +1,56 @@
 const express = require('express');
-const mysql = require('mysql2');
 const cors = require('cors');
-const dotenv = require('dotenv');
+const morgan = require('morgan');
+require('dotenv').config();
 
-// Import routes
-const invigilatorRoutes = require('./routes/invigilatorRoutes');
-const examRoutes = require('./routes/examRoutes');
-const classRoutes = require('./routes/classRoutes');
-const schedulingRoutes = require('./routes/schedulingRoutes');
-
-// Configure environment variables
-dotenv.config();
 const app = express();
 
+// CORS Configuration
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
+
 // Middleware
-app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
 
-// Create database pool
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-}).promise();
-
-// Test route
-app.get('/', (req, res) => {
-    res.send('Server is running');
+// Health check route
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK' });
 });
 
 // Routes
-app.use('/api/invigilators', invigilatorRoutes);
-app.use('/api/exams', examRoutes);
-app.use('/api/classes', classRoutes);
-app.use('/api/scheduling', schedulingRoutes);
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/invigilators', require('./routes/invigilatorRoutes'));
+app.use('/api/departments', require('./routes/departmentRoutes'));
+app.use('/api/rooms', require('./routes/roomRoutes'));
+app.use('/api/exams', require('./routes/examRoutes'));
+app.use('/api/classes', require('./routes/classRoutes'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({
-        success: false,
+    res.status(500).json({ 
         message: 'Something went wrong!',
-        error: err.message
+        error: process.env.NODE_ENV === 'development' ? err.message : {}
     });
 });
 
-const PORT = process.env.PORT || 5000;
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log('Database connection initialized');
-}).on('error', (err) => {
-    console.error('Server failed to start:', err);
+// Handle 404
+app.use((req, res) => {
+    res.status(404).json({ message: 'Route not found' });
 });
 
-// Export the database connection
-module.exports = db;
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Promise Rejection:', err);
+});

@@ -1,205 +1,228 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { Container, Row, Col, Card, Button, Form, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
 
 const InvigilatorSchedule = () => {
     const navigate = useNavigate();
     const [schedules, setSchedules] = useState([]);
     const [invigilators, setInvigilators] = useState([]);
     const [exams, setExams] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedSchedule, setSelectedSchedule] = useState(null);
     const [formData, setFormData] = useState({
         invigilator_id: '',
-        exam_id: '',
-        date: '',
-        start_time: '',
-        end_time: '',
-        room_number: ''
+        exam_id: ''
     });
+    const user = apiService.getCurrentUser();
+    const isAdmin = user && user.role === 'admin';
 
     useEffect(() => {
-        fetchSchedules();
-        fetchInvigilators();
-        fetchExams();
+        fetchData();
     }, []);
 
-    const fetchSchedules = async () => {
+    const fetchData = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/schedules');
-            setSchedules(response.data);
+            setLoading(true);
+
+            // Get all data needed
+            const [schedulesRes, invigilatorsRes, examsRes] = await Promise.all([
+                apiService.getSchedules(),
+                isAdmin ? apiService.getInvigilators() : Promise.resolve({ data: [] }),
+                isAdmin ? apiService.getExams() : Promise.resolve({ data: [] })
+            ]);
+
+            // Ensure that schedulesRes.data is always an array
+            const schedulesData = Array.isArray(schedulesRes.data) ? schedulesRes.data : [];
+            setSchedules(schedulesData);
+
+            if (isAdmin) {
+                // Ensure that invigilatorsRes.data is always an array
+                const invigilatorsData = Array.isArray(invigilatorsRes.data) ? invigilatorsRes.data : [];
+                setInvigilators(invigilatorsData);
+
+                // Ensure that examsRes.data is always an array
+                const examsData = Array.isArray(examsRes.data) ? examsRes.data : [];
+                setExams(examsData);
+            }
         } catch (error) {
-            console.error('Error fetching schedules:', error);
+            console.error('Error fetching schedule data:', error);
+            toast.error('Failed to load schedule data');
+            setSchedules([]);
+            setInvigilators([]);
+            setExams([]);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const fetchInvigilators = async () => {
-        try {
-            const response = await axios.get('http://localhost:5000/api/invigilators');
-            setInvigilators(response.data);
-        } catch (error) {
-            console.error('Error fetching invigilators:', error);
-        }
-    };
-
-    const fetchExams = async () => {
-        try {
-            const response = await axios.get('http://localhost:5000/api/exams');
-            setExams(response.data);
-        } catch (error) {
-            console.error('Error fetching exams:', error);
-        }
-    };
-
-    const handleSubmit = async (e) => {
+    const handleAssignDuty = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/schedules', formData);
-            alert('Schedule added successfully!');
-            fetchSchedules();
-            setFormData({
-                invigilator_id: '',
-                exam_id: '',
-                date: '',
-                start_time: '',
-                end_time: '',
-                room_number: ''
-            });
+            await apiService.createSchedule(formData);
+            toast.success('Duty assigned successfully');
+            setShowAssignModal(false);
+            resetForm();
+            fetchData();
         } catch (error) {
-            console.error('Error adding schedule:', error);
-            alert('Error adding schedule');
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this schedule?')) {
-            try {
-                await axios.delete(`http://localhost:5000/api/schedules/${id}`);
-                setSchedules(schedules.filter(s => s.id !== id));
-                alert('Schedule deleted successfully');
-            } catch (error) {
-                console.error('Error deleting schedule:', error);
-                alert('Error deleting schedule');
+            console.error('Error assigning duty:', error);
+            if (error.response && error.response.status === 400) {
+                toast.error(error.response.data.message || 'Failed to assign duty');
+            } else {
+                toast.error('Failed to assign duty');
             }
         }
     };
 
-    return (
-        <div className="container mt-4">
-            <h2 className="mb-4">Invigilator Schedule</h2>
+    const handleDeleteDuty = async () => {
+        if (!selectedSchedule) return;
+        try {
+            await apiService.deleteSchedule(selectedSchedule.id);
+            toast.success('Duty deleted successfully');
+            setShowDeleteModal(false);
+            setSelectedSchedule(null);
+            fetchData();
+        } catch (error) {
+            console.error('Error deleting duty:', error);
+            toast.error('Failed to delete duty');
+        }
+    };
 
-            <div className="card mb-4">
-                <div className="card-header">
-                    <h4>Add New Schedule</h4>
-                </div>
-                <div className="card-body">
-                    <form onSubmit={handleSubmit}>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label className="form-label">Invigilator</label>
-                                <select 
-                                    className="form-control"
-                                    value={formData.invigilator_id}
-                                    onChange={(e) => setFormData({...formData, invigilator_id: e.target.value})}
-                                    required
-                                >
-                                    <option value="">Select Invigilator</option>
-                                    {invigilators.map(inv => (
+    const resetForm = () => {
+        setFormData({
+            invigilator_id: '',
+            exam_id: ''
+        });
+    };
+
+    return (
+        <Container className="mt-4">
+            <Row>
+                <Col>
+                    <h2 className="mb-4">Invigilator Schedule</h2>
+                    {loading ? (
+                        <p>Loading...</p>
+                    ) : (
+                        <Card>
+                            <Card.Body>
+                                <Button variant="primary" onClick={() => setShowAssignModal(true)}>
+                                    Assign Duty
+                                </Button>
+                                <div className="table-responsive mt-4">
+                                    <table className="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Invigilator</th>
+                                                <th>Exam</th>
+                                                <th>Date</th>
+                                                <th>Time</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Array.isArray(schedules) ? (
+                                                schedules.map(schedule => (
+                                                    <tr key={schedule.id}>
+                                                        <td>{schedule.invigilator_name}</td>
+                                                        <td>{schedule.exam_name}</td>
+                                                        <td>{schedule.date}</td>
+                                                        <td>{`${schedule.start_time} - ${schedule.end_time}`}</td>
+                                                        <td>
+                                                            <Button
+                                                                variant="danger"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setSelectedSchedule(schedule);
+                                                                    setShowDeleteModal(true);
+                                                                }}
+                                                            >
+                                                                <i className="fas fa-trash"></i>
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : null}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    )}
+                </Col>
+            </Row>
+
+            {/* Assign Duty Modal */}
+            <Modal show={showAssignModal} onHide={() => setShowAssignModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Assign Duty</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form onSubmit={handleAssignDuty}>
+                        <Form.Group controlId="invigilator_id">
+                            <Form.Label>Invigilator</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={formData.invigilator_id}
+                                onChange={(e) => setFormData({ ...formData, invigilator_id: e.target.value })}
+                                required
+                            >
+                                <option value="">Select Invigilator</option>
+                                {Array.isArray(invigilators) ? (
+                                    invigilators.map(inv => (
                                         <option key={inv.id} value={inv.id}>
                                             {inv.name} - {inv.department}
                                         </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="col-md-6 mb-3">
-                                <label className="form-label">Exam</label>
-                                <select
-                                    className="form-control"
-                                    value={formData.exam_id}
-                                    onChange={(e) => setFormData({...formData, exam_id: e.target.value})}
-                                    required
-                                >
-                                    <option value="">Select Exam</option>
-                                    {exams.map(exam => (
+                                    ))
+                                ) : null}
+                            </Form.Control>
+                        </Form.Group>
+                        <Form.Group controlId="exam_id" className="mt-3">
+                            <Form.Label>Exam</Form.Label>
+                            <Form.Control
+                                as="select"
+                                value={formData.exam_id}
+                                onChange={(e) => setFormData({ ...formData, exam_id: e.target.value })}
+                                required
+                            >
+                                <option value="">Select Exam</option>
+                                {Array.isArray(exams) ? (
+                                    exams.map(exam => (
                                         <option key={exam.id} value={exam.id}>
                                             {exam.subject_name} - {exam.exam_date}
                                         </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="col-md-4 mb-3">
-                                <label className="form-label">Date</label>
-                                <input
-                                    type="date"
-                                    className="form-control"
-                                    value={formData.date}
-                                    onChange={(e) => setFormData({...formData, date: e.target.value})}
-                                    required
-                                />
-                            </div>
-                            <div className="col-md-4 mb-3">
-                                <label className="form-label">Start Time</label>
-                                <input
-                                    type="time"
-                                    className="form-control"
-                                    value={formData.start_time}
-                                    onChange={(e) => setFormData({...formData, start_time: e.target.value})}
-                                    required
-                                />
-                            </div>
-                            <div className="col-md-4 mb-3">
-                                <label className="form-label">End Time</label>
-                                <input
-                                    type="time"
-                                    className="form-control"
-                                    value={formData.end_time}
-                                    onChange={(e) => setFormData({...formData, end_time: e.target.value})}
-                                    required
-                                />
-                            </div>
-                        </div>
-                        <button type="submit" className="btn btn-primary">
-                            Add Schedule
-                        </button>
-                    </form>
-                </div>
-            </div>
+                                    ))
+                                ) : null}
+                            </Form.Control>
+                        </Form.Group>
+                        <Button variant="primary" type="submit" className="mt-3">
+                            Assign Duty
+                        </Button>
+                    </Form>
+                </Modal.Body>
+            </Modal>
 
-            <div className="card">
-                <div className="card-body">
-                    <div className="table-responsive">
-                        <table className="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Invigilator</th>
-                                    <th>Exam</th>
-                                    <th>Date</th>
-                                    <th>Time</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {schedules.map(schedule => (
-                                    <tr key={schedule.id}>
-                                        <td>{schedule.invigilator_name}</td>
-                                        <td>{schedule.exam_name}</td>
-                                        <td>{schedule.date}</td>
-                                        <td>{`${schedule.start_time} - ${schedule.end_time}`}</td>
-                                        <td>
-                                            <button
-                                                className="btn btn-sm btn-danger"
-                                                onClick={() => handleDelete(schedule.id)}
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+            {/* Delete Duty Modal */}
+            <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Delete Duty</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Are you sure you want to delete this duty?</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button variant="danger" onClick={handleDeleteDuty}>
+                        Delete
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </Container>
     );
 };
 
-export default InvigilatorSchedule; 
+export default InvigilatorSchedule;

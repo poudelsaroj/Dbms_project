@@ -1,11 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const examController = require('../controllers/examController');
-const { validateExamSchedule } = require('../middleware/schedulingValidation');
+const { authenticateUser, authorizeAdmin } = require('../middleware/authMiddleware');
 
-router.post('/', validateExamSchedule, examController.createExam);
+// Apply authentication middleware to all routes
+router.use(authenticateUser);
+
+// Admin-only routes
+router.post('/', authorizeAdmin, examController.createExam);
+router.put('/:id', authorizeAdmin, examController.updateExam);
+router.delete('/:id', authorizeAdmin, examController.deleteExam);
+
+// Routes accessible by both admin and invigilators
 router.get('/', examController.getAllExams);
-router.put('/:id', validateExamSchedule, examController.updateExam);
-router.delete('/:id', examController.deleteExam);
+router.get('/:id', examController.getExam);
 
-module.exports = router; 
+// Additional exam-related routes
+router.get('/department/:departmentId', examController.getExamsByDepartment);
+router.get('/room/:roomId', examController.getExamsByRoom);
+router.get('/date/:date', examController.getExamsByDate);
+
+module.exports = router;

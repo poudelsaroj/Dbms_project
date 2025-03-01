@@ -1,20 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const invigilatorController = require('../controllers/invigilatorController');
+const authMiddleware = require('../middleware/authMiddleware');
 
-// GET all invigilators
-router.get('/', invigilatorController.getAllInvigilators);
+// Protected routes
+router.use(authMiddleware.authenticateUser);
 
-// POST create new invigilator
-router.post('/', invigilatorController.createInvigilator);
-
-// GET single invigilator
-router.get('/:id', invigilatorController.getInvigilator);
-
-// PUT update invigilator
-router.put('/:id', invigilatorController.updateInvigilator);
-
-// DELETE invigilator
-router.delete('/:id', invigilatorController.deleteInvigilator);
+// Admin only routes
+router.post('/', authMiddleware.authorizeAdmin, invigilatorController.createInvigilator);
+router.get('/', authMiddleware.authorizeAdmin, invigilatorController.getAllInvigilators);
+router.get('/:id', authMiddleware.authorizeAdmin, invigilatorController.getInvigilator);
+router.put('/:id', authMiddleware.authorizeAdmin, invigilatorController.updateInvigilator);
+router.delete('/:id', authMiddleware.authorizeAdmin, invigilatorController.deleteInvigilator);
 
 module.exports = router;

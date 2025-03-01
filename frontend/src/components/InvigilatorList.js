@@ -1,159 +1,184 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
 import {
-  Box,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-  IconButton,
-  TablePagination,
-  Chip,
-  TextField,
-  InputAdornment
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import SearchIcon from '@mui/icons-material/Search';
-import { styled } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
-
-const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
-  maxWidth: 1200,
-  margin: '20px auto',
-  '& .MuiTableCell-head': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.common.white,
-    fontWeight: 'bold',
-  },
-}));
+  Container, Card, Table, Button, Badge,
+  Form, Row, Col, Modal
+} from 'react-bootstrap';
 
 const InvigilatorList = () => {
   const [invigilators, setInvigilators] = useState([]);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState('');
-  const navigate = useNavigate();
-  
+  const [loading, setLoading] = useState(true);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedInvigilator, setSelectedInvigilator] = useState(null);
+  const [filters, setFilters] = useState({
+    department: '',
+    status: '',
+    search: ''
+  });
+
   useEffect(() => {
     fetchInvigilators();
   }, []);
 
   const fetchInvigilators = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/invigilators');
-      const data = await response.json();
-      setInvigilators(data);
+      setLoading(true);
+      const response = await apiService.getInvigilators();
+      setInvigilators(response.data);
     } catch (error) {
       console.error('Error fetching invigilators:', error);
+      toast.error('Failed to load invigilators');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this invigilator?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/invigilators/${id}`, {
-          method: 'DELETE',
-        });
-        if (response.ok) {
-          fetchInvigilators();
-        }
-      } catch (error) {
-        console.error('Error deleting invigilator:', error);
-      }
+  const handleStatusChange = async (invigilator, newStatus) => {
+    try {
+      await apiService.updateInvigilator(invigilator.id, {
+        ...invigilator,
+        status: newStatus
+      });
+      toast.success('Status updated successfully');
+      fetchInvigilators();
+      setShowStatusModal(false);
+    } catch (error) {
+      toast.error('Failed to update status');
     }
   };
 
-  const filteredInvigilators = invigilators.filter(invigilator =>
-    Object.values(invigilator).some(value =>
-      value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  const filteredInvigilators = invigilators.filter(inv => {
+    return (
+      (!filters.department || inv.department_id === parseInt(filters.department)) &&
+      (!filters.status || inv.status === filters.status) &&
+      (!filters.search || 
+        inv.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        inv.email.toLowerCase().includes(filters.search.toLowerCase()))
+    );
+  });
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom align="center" color="primary">
-        Invigilators List
-      </Typography>
+    <Container fluid className="py-4">
+      <Card className="shadow-sm">
+        <Card.Header className="bg-primary text-white">
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Invigilators</h5>
+            <Link to="/add-invigilator" className="btn btn-light">
+              <i className="fas fa-plus me-2"></i>Add Invigilator
+            </Link>
+          </div>
+        </Card.Header>
 
-      <Box sx={{ maxWidth: 1200, margin: '20px auto' }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Search invigilators..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Box>
+        <Card.Body>
+          <Row className="mb-4">
+            <Col md={4}>
+              <Form.Control
+                type="text"
+                placeholder="Search invigilators..."
+                value={filters.search}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  search: e.target.value
+                }))}
+              />
+            </Col>
+            {/* Add more filters as needed */}
+          </Row>
 
-      <StyledTableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Employee ID</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Phone</TableCell>
-              <TableCell>Department</TableCell>
-              <TableCell>Experience</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredInvigilators
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((invigilator) => (
-                <TableRow key={invigilator._id}>
-                  <TableCell>{invigilator.employeeId}</TableCell>
-                  <TableCell>{invigilator.name}</TableCell>
-                  <TableCell>{invigilator.email}</TableCell>
-                  <TableCell>{invigilator.phone}</TableCell>
-                  <TableCell>
-                    <Chip label={invigilator.department} color="primary" />
-                  </TableCell>
-                  <TableCell>{invigilator.experience} years</TableCell>
-                  <TableCell>
-                    <IconButton 
-                      color="primary"
-                      onClick={() => navigate(`/edit-invigilator/${invigilator._id}`)}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      color="error"
-                      onClick={() => handleDelete(invigilator._id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
+          <Table responsive striped hover>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Contact</th>
+                <th>Duties</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInvigilators.map(invigilator => (
+                <tr key={invigilator.id}>
+                  <td>
+                    {invigilator.name}
+                    <small className="text-muted d-block">
+                      {invigilator.designation}
+                    </small>
+                  </td>
+                  <td>{invigilator.department_name}</td>
+                  <td>
+                    {invigilator.email}
+                    <small className="text-muted d-block">
+                      {invigilator.phone}
+                    </small>
+                  </td>
+                  <td>
+                    <Badge bg="primary" className="me-2">
+                      Upcoming: {invigilator.upcoming_duties}
+                    </Badge>
+                    <Badge bg="success">
+                      Completed: {invigilator.completed_duties}
+                    </Badge>
+                  </td>
+                  <td>
+                    <Badge bg={invigilator.status === 'active' ? 'success' : 'danger'}>
+                      {invigilator.status}
+                    </Badge>
+                  </td>
+                  <td>
+                    <div className="d-flex gap-2">
+                      <Link
+                        to={`/invigilator/${invigilator.id}`}
+                        className="btn btn-sm btn-info"
+                      >
+                        <i className="fas fa-eye"></i>
+                      </Link>
+                      <Button
+                        variant={invigilator.status === 'active' ? 'danger' : 'success'}
+                        size="sm"
+                        onClick={() => {
+                          setSelectedInvigilator(invigilator);
+                          setShowStatusModal(true);
+                        }}
+                      >
+                        <i className={`fas fa-${invigilator.status === 'active' ? 'ban' : 'check'}`}></i>
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
               ))}
-          </TableBody>
-        </Table>
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={filteredInvigilators.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(e, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-        />
-      </StyledTableContainer>
-    </Box>
+            </tbody>
+          </Table>
+        </Card.Body>
+      </Card>
+
+      {/* Status Change Modal */}
+      <Modal show={showStatusModal} onHide={() => setShowStatusModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Change Invigilator Status</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to change the status of {selectedInvigilator?.name} to 
+          {selectedInvigilator?.status === 'active' ? ' inactive' : ' active'}?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowStatusModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant={selectedInvigilator?.status === 'active' ? 'danger' : 'success'}
+            onClick={() => handleStatusChange(
+              selectedInvigilator,
+              selectedInvigilator.status === 'active' ? 'inactive' : 'active'
+            )}
+          >
+            Confirm
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </Container>
   );
 };
 

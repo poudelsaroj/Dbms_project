@@ -1,32 +1,71 @@
+const bcrypt = require('bcrypt');
 const db = require('../config/db');
 
 // Get all invigilators
 exports.getAllInvigilators = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM invigilators');
-        console.log('Fetched data:', rows); // Debug log
-        res.status(200).json(rows); // Send array directly
+        const [invigilators] = await db.query(`
+            SELECT i.*, d.name as department_name 
+            FROM invigilators i 
+            LEFT JOIN departments d ON i.department_id = d.id
+            ORDER BY i.name
+        `);
+        res.json(invigilators);
     } catch (error) {
         console.error('Error fetching invigilators:', error);
-        res.status(500).json([]);
+        res.status(500).json({ message: 'Error fetching invigilators' });
     }
 };
 
 // Create invigilator
 exports.createInvigilator = async (req, res) => {
     try {
-        const { name, email, phone, department } = req.body;
-        const [result] = await db.query(
-            'INSERT INTO invigilators (name, email, phone, department) VALUES (?, ?, ?, ?)',
-            [name, email, phone, department]
-        );
-        res.status(201).json({
-            id: result.insertId,
+        const {
             name,
             email,
+            password,
+            department_id,
             phone,
-            department
+            designation,
+            max_duties_per_day = 2,
+            max_duties_per_week = 10
+        } = req.body;
+
+        // Validate required fields
+        if (!name || !email || !password || !department_id) {
+            return res.status(400).json({
+                message: 'Name, email, password and department are required'
+            });
+        }
+
+        // Check if email exists
+        const [existing] = await db.query(
+            'SELECT id FROM invigilators WHERE email = ?',
+            [email]
+        );
+
+        if (existing.length > 0) {
+            return res.status(409).json({
+                message: 'Email already registered'
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Insert invigilator
+        const [result] = await db.query(
+            `INSERT INTO invigilators 
+            (name, email, password, department_id, phone, designation, max_duties_per_day, max_duties_per_week, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+            [name, email, hashedPassword, department_id, phone || null, designation || 'Invigilator', max_duties_per_day, max_duties_per_week]
+        );
+        
+        res.status(201).json({
+            message: 'Invigilator created successfully',
+            invigilatorId: result.insertId
         });
+
     } catch (error) {
         console.error('Error creating invigilator:', error);
         res.status(500).json({ message: 'Error creating invigilator' });
@@ -36,13 +75,21 @@ exports.createInvigilator = async (req, res) => {
 // Get single invigilator
 exports.getInvigilator = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM invigilators WHERE id = ?', [req.params.id]);
-        if (rows.length > 0) {
-            res.json(rows[0]);
-        } else {
-            res.status(404).json({ message: 'Invigilator not found' });
+        const [invigilator] = await db.query(
+            `SELECT i.*, d.name as department_name 
+             FROM invigilators i 
+             LEFT JOIN departments d ON i.department_id = d.id 
+             WHERE i.id = ?`,
+            [req.params.id]
+        );
+
+        if (!invigilator[0]) {
+            return res.status(404).json({ message: 'Invigilator not found' });
         }
+
+        res.json(invigilator[0]);
     } catch (error) {
+        console.error('Error fetching invigilator:', error);
         res.status(500).json({ message: 'Error fetching invigilator' });
     }
 };
@@ -50,13 +97,21 @@ exports.getInvigilator = async (req, res) => {
 // Update invigilator
 exports.updateInvigilator = async (req, res) => {
     try {
-        const { name, email, phone, department } = req.body;
+        const { name, email, department_id, phone, designation, max_duties_per_day, max_duties_per_week, status } = req.body;
+
         await db.query(
-            'UPDATE invigilators SET name = ?, email = ?, phone = ?, department = ? WHERE id = ?',
-            [name, email, phone, department, req.params.id]
+            `UPDATE invigilators 
+             SET name = ?, email = ?, department_id = ?, phone = ?, 
+                 designation = ?, max_duties_per_day = ?, max_duties_per_week = ?, 
+                 status = ?
+             WHERE id = ?`,
+            [name, email, department_id, phone, designation, 
+             max_duties_per_day, max_duties_per_week, status, req.params.id]
         );
+
         res.json({ message: 'Invigilator updated successfully' });
     } catch (error) {
+        console.error('Error updating invigilator:', error);
         res.status(500).json({ message: 'Error updating invigilator' });
     }
 };
@@ -67,6 +122,7 @@ exports.deleteInvigilator = async (req, res) => {
         await db.query('DELETE FROM invigilators WHERE id = ?', [req.params.id]);
         res.json({ message: 'Invigilator deleted successfully' });
     } catch (error) {
+        console.error('Error deleting invigilator:', error);
         res.status(500).json({ message: 'Error deleting invigilator' });
     }
 };
@@ -113,6 +169,11 @@ exports.checkAvailability = async (req, res) => {
         // Mark unavailable invigilators
         assignments.forEach(assignment => {
             if (assignment.exam_date) {
+                // Format time
+                const formatTime = (timeString) => {
+                    return timeString.slice(0, 5);
+                };
+
                 availability[assignment.id] = {
                     isAvailable: false,
                     reason: `Assigned to ${assignment.subject_name} (${formatTime(assignment.start_time)} - ${formatTime(assignment.end_time)})`,
@@ -130,11 +191,6 @@ exports.checkAvailability = async (req, res) => {
         console.error('Error checking invigilator availability:', error);
         res.status(500).json({ message: 'Error checking availability' });
     }
-};
-
-// Helper function to format time
-const formatTime = (timeString) => {
-    return timeString.slice(0, 5);
 };
 
 // Add workload tracking
@@ -165,5 +221,105 @@ exports.getInvigilatorWorkload = async (req, res) => {
     } catch (error) {
         console.error('Error fetching invigilator workload:', error);
         res.status(500).json({ message: 'Error fetching workload' });
+    }
+};
+
+// Add invigilator statistics
+exports.getInvigilatorStats = async (req, res) => {
+    try {
+        const [[stats]] = await db.query(`
+            SELECT COUNT(*) as total 
+            FROM invigilators
+        `);
+        
+        res.json({
+            total: parseInt(stats.total) || 0
+        });
+    } catch (error) {
+        console.error('Error fetching invigilator stats:', error);
+        res.status(500).json({ message: 'Error fetching invigilator statistics' });
+    }
+};
+
+// Register invigilator
+exports.registerInvigilator = async (req, res) => {
+    try {
+        const { name, email, password, phone, department, designation } = req.body;
+
+        // Check if email already exists
+        const [existing] = await db.query(
+            'SELECT id FROM invigilators WHERE email = ?',
+            [email]
+        );
+
+        if (existing.length > 0) {
+            return res.status(409).json({
+                message: 'Email already registered'
+            });
+        }
+
+        // Hash password before storing
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const [result] = await db.query(
+            `INSERT INTO invigilators 
+            (name, email, password, phone, department, designation) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [name, email, hashedPassword, phone || null, department || null, designation || null]
+        );
+
+        res.status(201).json({
+            message: 'Invigilator registered successfully',
+            invigilatorId: result.insertId
+        });
+    } catch (error) {
+        console.error('Error registering invigilator:', error);
+        res.status(500).json({ message: 'Error registering invigilator' });
+    }
+};
+
+exports.getInvigilatorSchedule = async (req, res) => {
+    try {
+        const invigilatorId = req.params.id;
+        const [schedule] = await db.query(`
+            SELECT 
+                e.id as exam_id,
+                e.subject_name,
+                e.subject_code,
+                e.exam_date,
+                e.start_time,
+                e.end_time,
+                r.room_number,
+                d.name as department_name,
+                ei.duty_status
+            FROM exam_invigilators ei
+            JOIN exams e ON ei.exam_id = e.id
+            JOIN rooms r ON e.room_id = r.id
+            JOIN departments d ON e.department_id = d.id
+            WHERE ei.invigilator_id = ?
+            ORDER BY e.exam_date, e.start_time
+        `, [invigilatorId]);
+
+        res.json(schedule);
+    } catch (error) {
+        console.error('Error fetching invigilator schedule:', error);
+        res.status(500).json({ message: 'Error fetching schedule' });
+    }
+};
+
+exports.updateInvigilatorStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        await db.query(
+            'UPDATE invigilators SET status = ? WHERE id = ?',
+            [status, id]
+        );
+
+        res.json({ message: 'Invigilator status updated successfully' });
+    } catch (error) {
+        console.error('Error updating invigilator status:', error);
+        res.status(500).json({ message: 'Error updating status' });
     }
 };
