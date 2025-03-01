@@ -3,7 +3,8 @@ const db = require('../config/db');
 // Create new exam
 exports.createExam = async (req, res) => {
     try {
-        const { subject_name, exam_date, start_time, end_time, room_number, invigilator_ids } = req.body;
+        const { subject_name, exam_date, start_time, end_time, room_number, student_count, department, invigilator_ids } = req.body;
+        // Check if the exams table exists, if not create it
         
         // Insert exam
         const [examResult] = await db.query(

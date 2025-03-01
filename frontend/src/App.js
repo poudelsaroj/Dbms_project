@@ -13,7 +13,27 @@ import InvigilatorSchedule from './components/InvigilatorSchedule';
 import ExamSchedule from './components/ExamSchedule';
 import DepartmentManagement from './components/DepartmentManagement';
 
+import { useState } from 'react';
+import {Navigate } from 'react-router-dom';
+import LandingPage from './components/LandingPage';
+import Login from './components/Login';
+import Signup from './components/Signup';
+import './index.css';
+
 function App() {
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState('');
+  
+  const handleLogin = (role) => {
+    setIsAuthenticated(true);
+    setUserRole(role);
+  };
+  
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserRole('');
+  };
   return (
     <Router>
       <div className="App">
@@ -58,7 +78,11 @@ function App() {
           </div>
         </nav>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />}/>
+          <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Signup onSignup={handleLogin} />}/>
+          <Route path="/dashboard" element={isAuthenticated ? <Dashboard userRole={userRole} onLogout={handleLogout} /> : <Navigate to="/login" />} />
+          {/* <Route path="/" element={<Dashboard />} /> */}
           <Route path="/add-invigilator" element={<AddInvigilator />} />
           <Route path="/view-invigilators" element={<ViewInvigilators />} />
           <Route path="/create-exam" element={<CreateExam />} />
