@@ -13,17 +13,18 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
+// Test connection
+pool.getConnection((err, connection) => {
+  if (err) {
+    console.error('Database connection error:', err);
+    return;
+  }
+  console.log('Database connected successfully');
+  connection.release();
+});
+
 // Convert pool to use promises
 const promisePool = pool.promise();
-
-// Test connection
-promisePool.query('SELECT 1')
-    .then(() => {
-        console.log('Database connected successfully');
-    })
-    .catch(err => {
-        console.error('Error connecting to the database:', err);
-    });
 
 // Execute queries
 async function query(sql, params) {

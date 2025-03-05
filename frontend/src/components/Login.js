@@ -26,15 +26,16 @@ const Login = () => {
     try {
       const response = await apiService.login(formData);
       
-      // Redirect based on role
-      if (response.data.user.role === 'admin') {
+      // Check user role from response and redirect accordingly
+      if (response.user && response.user.role === 'admin') {
         navigate('/admin/dashboard');
       } else {
         navigate('/invigilator/dashboard');
       }
+      
     } catch (err) {
       console.error('Login error:', err);
-      setError('Login failed. Please try again.');
+      setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }

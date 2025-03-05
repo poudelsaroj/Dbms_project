@@ -56,7 +56,15 @@ const Dashboard = () => {
       // Get recent/upcoming exams
       const recentExamsData = upcoming
         .sort((a, b) => new Date(a.exam_date) - new Date(b.exam_date))
-        .slice(0, 5);
+        .slice(0, 5)
+        .map(exam => ({
+          // Map the exam properties correctly
+          subject: exam.subject_name,  // Changed from exam.subject 
+          exam_date: exam.exam_date,
+          exam_time: `${exam.start_time} - ${exam.end_time}`,  // Combined from start_time and end_time
+          room: exam.room_number || exam.room_id  // Using room_number or room_id
+        }));
+
       setRecentExams(recentExamsData);
       
     } catch (error) {

@@ -47,14 +47,25 @@ export const apiService = {
   login: async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      if (response.data.token) {
+      
+      if (response.data && response.data.token) {
+        // Store token in localStorage
         localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        // Store user data
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
+        
+        // Set the Authorization header for future requests
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        
+        return response.data;
+      } else {
+        throw new Error('Invalid login response');
       }
-      return response;
     } catch (error) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      console.error('Login error:', error);
       throw error;
     }
   },
@@ -222,6 +233,19 @@ export const apiService = {
   createRoom: (data) => api.post('/rooms', data),
   updateRoom: (id, data) => api.put(`/rooms/${id}`, data),
   deleteRoom: (id) => api.delete(`/rooms/${id}`),
+
+  // Signup
+  signup: async (userData) => {
+    try {
+      // Use the api instance with the invigilators endpoint instead of direct axios call
+      const response = await api.post('/invigilators', userData);
+      toast.success('Account created successfully');
+      return response.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Registration failed');
+      throw error;
+    }
+  },
 };
 
 export default api;

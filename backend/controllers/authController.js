@@ -8,43 +8,44 @@ exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Hardcoded admin credentials for testing
-        if (email === 'admin@admin.com' && password === 'admin123') {
-            const token = jwt.sign(
-                { 
-                    id: 1,
-                    role: 'admin',
-                    email: email 
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: '24h' }
-            );
+        // Check if user exists
+        const [users] = await db.query(
+            'SELECT * FROM invigilators WHERE email = ?',
+            [email]
+        );
 
-            return res.status(200).json({
-                success: true,
-                token,
-                user: {
-                    id: 1,
-                    name: 'Administrator',
-                    email: email,
-                    role: 'admin',
-                    department: 'Administration',
-                    designation: 'Administrator'
-                }
-            });
+        if (users.length === 0) {
+            return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        return res.status(401).json({ 
-            success: false, 
-            message: 'Invalid credentials' 
-        });
+        const user = users[0];
 
+        // Check if password matches
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Create token
+        const token = jwt.sign(
+            { id: user.id },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Return token and user data
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email
+            }
+        });
     } catch (error) {
         console.error('Login error:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Server error during login' 
-        });
+        res.status(500).json({ message: 'Server error during login' });
     }
 };
 

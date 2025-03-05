@@ -1,26 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiService } from '../services/apiService';
+import { toast } from 'react-toastify';
+import { Form, Button, Container, Row, Col } from 'react-bootstrap';
 
 const Signup = () => {
   const navigate = useNavigate();
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
-    department: '',
-    designation: ''
+    department_id: '', // Changed from department to department_id
+    designation: '',
+    max_duties_per_day: 2,
+    max_duties_per_week: 6
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    // Fetch departments when component mounts
+    const fetchDepartments = async () => {
+      try {
+        const response = await apiService.getAllDepartments();
+        setDepartments(response.data || []);
+      } catch (err) {
+        console.error('Error fetching departments:', err);
+        toast.error('Failed to load departments');
+      }
+    };
+    fetchDepartments();
+  }, []);
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -28,145 +48,137 @@ const Signup = () => {
     setLoading(true);
     setError('');
     
+    // Check if passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      toast.error('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+    
+    // Validate required fields
+    if (!formData.name || !formData.email || !formData.password || !formData.department_id) {
+      setError('Name, email, password and department are required');
+      toast.error('Please fill in all required fields');
       setLoading(false);
       return;
     }
     
     try {
       // Remove confirmPassword from data sent to API
-      const { confirmPassword, ...signupData } = formData;
-      await apiService.signup(signupData);
+      const { confirmPassword, ...dataToSend } = formData;
       
-      alert('Registration successful! You can now login.');
+      // Use the signup method (which now uses the invigilators endpoint)
+      await apiService.signup(dataToSend);
+      
+      toast.success('Registration successful!');
       navigate('/login');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      console.error('Signup error:', err);
+      setError(err.response?.data?.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container mt-5">
-      <div className="row justify-content-center">
-        <div className="col-md-8">
-          <div className="card">
-            <div className="card-header bg-primary text-white text-center">
-              <h3>Sign Up as Invigilator</h3>
+    <Container className="mt-4">
+      <Row className="justify-content-center">
+        <Col md={8}>
+          <h2>Sign Up as Invigilator</h2>
+          {error && <div className="alert alert-danger">{error}</div>}
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label>Name*</Form.Label>
+              <Form.Control
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Email*</Form.Label>
+              <Form.Control
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Password*</Form.Label>
+              <Form.Control
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Confirm Password*</Form.Label>
+              <Form.Control
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Department*</Form.Label>
+              <Form.Select
+                name="department_id"
+                value={formData.department_id}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select Department</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Phone</Form.Label>
+              <Form.Control
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Designation</Form.Label>
+              <Form.Control
+                type="text"
+                name="designation"
+                value={formData.designation}
+                onChange={handleChange}
+              />
+            </Form.Group>
+
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading ? 'Signing up...' : 'Sign Up'}
+            </Button>
+            <div className="mt-3 text-center">
+              <p>Already have an account? <Link to="/login">Login</Link></p>
             </div>
-            <div className="card-body">
-              {error && <div className="alert alert-danger">{error}</div>}
-              <form onSubmit={handleSubmit}>
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Full Name</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      name="name" 
-                      value={formData.name}
-                      onChange={handleChange}
-                      required 
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Email</label>
-                    <input 
-                      type="email" 
-                      className="form-control" 
-                      name="email" 
-                      value={formData.email}
-                      onChange={handleChange}
-                      required 
-                    />
-                  </div>
-                </div>
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Password</label>
-                    <input 
-                      type="password" 
-                      className="form-control" 
-                      name="password" 
-                      value={formData.password}
-                      onChange={handleChange}
-                      required 
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Confirm Password</label>
-                    <input 
-                      type="password" 
-                      className="form-control" 
-                      name="confirmPassword" 
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      required 
-                    />
-                  </div>
-                </div>
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Phone</label>
-                    <input 
-                      type="tel" 
-                      className="form-control" 
-                      name="phone" 
-                      value={formData.phone}
-                      onChange={handleChange}
-                      required 
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Department</label>
-                    <select 
-                      className="form-select"
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Select Department</option>
-                      <option value="Computer Science">Computer Science</option>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Mechanical">Mechanical</option>
-                      <option value="Civil">Civil</option>
-                      <option value="Electrical">Electrical</option>
-                      <option value="Information Technology">Information Technology</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Designation</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    name="designation" 
-                    value={formData.designation}
-                    onChange={handleChange}
-                    required 
-                  />
-                </div>
-                <div className="d-grid">
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary" 
-                    disabled={loading}
-                  >
-                    {loading ? 'Signing Up...' : 'Sign Up'}
-                  </button>
-                </div>
-              </form>
-              <div className="mt-3 text-center">
-                <p>Already have an account? <Link to="/login">Login</Link></p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </Form>
+        </Col>
+      </Row>
+    </Container>
   );
 };
 

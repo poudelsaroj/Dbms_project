@@ -18,7 +18,7 @@ const Navbar = () => {
     <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
       <div className="container">
         <Link className="navbar-brand" to={isLoggedIn ? (userType === 'admin' ? '/admin/dashboard' : '/invigilator/dashboard') : '/'}>
-          Exam Management System
+          Invigilator Management System
         </Link>
         <button
           className="navbar-toggler"
@@ -30,6 +30,15 @@ const Navbar = () => {
         </button>
         <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav me-auto">
+            {/* Public links visible to all */}
+            <li className="nav-item">
+              <Link className="nav-link" to="/about">About</Link>
+            </li>
+            <li className="nav-item">
+              <Link className="nav-link" to="/contact">Contact</Link>
+            </li>
+            
+            {/* Admin links */}
             {isLoggedIn && userType === 'admin' && (
               <>
                 <li className="nav-item">
@@ -49,6 +58,8 @@ const Navbar = () => {
                 </li>
               </>
             )}
+            
+            {/* Invigilator links */}
             {isLoggedIn && userType === 'invigilator' && (
               <>
                 <li className="nav-item">
