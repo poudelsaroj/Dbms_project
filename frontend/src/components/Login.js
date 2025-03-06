@@ -24,6 +24,7 @@ const Login = () => {
     setError('');
     
     try {
+      console.log("hey from login.js first line");
       const response = await apiService.login(formData);
       
       // Check user role from response and redirect accordingly
@@ -32,6 +33,8 @@ const Login = () => {
       } else {
         navigate('/invigilator/dashboard');
       }
+      console.log("hey from login.js");
+      console.log(response);
       
     } catch (err) {
       console.error('Login error:', err);

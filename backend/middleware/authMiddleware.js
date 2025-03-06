@@ -19,6 +19,8 @@ exports.authenticateUser = (req, res, next) => {
 };
 
 exports.authorizeAdmin = (req, res, next) => {
+  console.log("this is from the authMiddleware.js file");
+  console.log(req.user);
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });
   }
