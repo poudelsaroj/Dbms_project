@@ -3,6 +3,18 @@ const db = require('./config/db');
 
 async function createAdmin() {
   try {
+
+    // Create admins table if it doesn't exist
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     const email = 'admin@example.com';
     const password = 'admin123'; // You should change this in production
     const name = 'Administrator';
